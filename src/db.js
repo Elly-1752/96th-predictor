@@ -2,6 +2,9 @@
  * Supabase persistence (Step 14) — uses the SERVICE ROLE key.
  * This key bypasses RLS by design, so the backend can write while
  * the public app can only read.
+ *
+ * The client is created LAZILY (on first use) so the web server can
+ * still serve / and /health even before env vars exist.
  */
 'use strict';
 const { createClient } = require('@supabase/supabase-js');
@@ -11,18 +14,27 @@ if (!global.WebSocket) {
   try { global.WebSocket = require('ws'); } catch (_) { /* realtime unused anyway */ }
 }
 
-const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+let _client = null;
+function client() {
+  if (!_client) {
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+      throw new Error('Missing env: SUPABASE_URL / SUPABASE_SERVICE_KEY (set them on Render).');
+    }
+    _client = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+  }
+  return _client;
+}
 
 /**
  * run = {
  *  run_date, engine_version, safe_combined_odds, accum_combined_odds,
  *  sources_used: [...],
- *  fixtures: [ {sport,league,country,home_team,away_team,kickoff,form,h2h,odds,news} ],
- *  safe_picks: [ {position,sport,league,home_team,away_team,kickoff,raw_signal,market,selection,odds,confidence,step_down_note} ],
- *  accum_legs: [ same shape without step_down_note ]
+ *  fixtures: [...], safe_picks: [...], accum_legs: [...]
  * }
  */
 async function saveRun(run) {
+  const sb = client();
+
   // 1) Replace any previous run for this EAT date (cascade deletes old rows)
   const del = await sb.from('daily_runs').delete().eq('run_date', run.run_date);
   if (del.error) throw new Error('delete old run: ' + del.error.message);
@@ -69,4 +81,4 @@ async function saveRun(run) {
   return runId;
 }
 
-module.exports = { saveRun, sb };
+module.exports = { saveRun };
