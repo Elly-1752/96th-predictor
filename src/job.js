@@ -1,7 +1,7 @@
 /**
  * THE DAILY JOB (Step 14) — the whole pipeline in order:
  *   fetch -> score -> step-down -> select -> save to Supabase.
- * Triggered once a day at 03:00 EAT by cron-job.org (Phase 4),
+ * Triggered once a day at 08:00 EAT by cron-job.org (Phase 4),
  * and manually right now for testing.
  */
 'use strict';
@@ -26,6 +26,11 @@ function todayEAT() {
   return new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
+/** Date for this run. Normally today (EAT); JOB_DATE env var allows a dry-run of another day. */
+function runDate() {
+  return process.env.JOB_DATE || todayEAT();
+}
+
 /**
  * Kickoff policy (user rule):
  *  - the match must still be UPCOMING at run time (no past games), and
@@ -40,7 +45,7 @@ function kickoffAllowed(iso, nowMs) {
 }
 
 async function runDailyJob() {
-  const date = todayEAT();
+  const date = runDate();
   const sources = [];
   const started = Date.now();
 
@@ -129,8 +134,16 @@ async function runDailyJob() {
   try {
     const bb = await apiSports.getBasketballGames(date);
     sources.push({ id: 'api-basketball', role: 'games+odds', ok: true, fixtures: bb.games.length });
-    for (const g of bb.games.slice(0, 6)) {
-      if (!kickoffAllowed(g.kickoff, nowMs)) continue;
+    // IMPORTANT: filter + prioritise FIRST, then cap the odds budget (6 games).
+    const bbCandidates = bb.games
+      .filter((g) => kickoffAllowed(g.kickoff, nowMs))
+      .sort((a, b) => {
+        const pa = PRIORITY_LEAGUES.includes(a.league) ? 0 : 1;
+        const pb = PRIORITY_LEAGUES.includes(b.league) ? 0 : 1;
+        return pa - pb || String(a.kickoff).localeCompare(String(b.kickoff));
+      })
+      .slice(0, 6);
+    for (const g of bbCandidates) {
       const books = await apiSports.getBasketballOdds(g.ext_id);
       const cons = consensus(books);
       if (!cons) continue;
@@ -202,4 +215,4 @@ async function runDailyJob() {
   };
 }
 
-module.exports = { runDailyJob, todayEAT, kickoffAllowed };
+module.exports = { runDailyJob, todayEAT, runDate, kickoffAllowed };
