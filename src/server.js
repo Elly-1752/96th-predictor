@@ -1,0 +1,74 @@
+/**
+ * 96th Predictor Engine — web server.
+ * '/' serves a tiny branded status page (so the preview is not blank).
+ * '/health' serves JSON diagnostics.
+ */
+'use strict';
+require('dotenv').config();
+
+const express = require('express');
+const { CONFIG, envStatus } = require('./config');
+const { runDailyJob } = require('./job');
+
+const app = express();
+app.disable('x-powered-by');
+
+const STATUS_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>96th Predictor Engine — Backend</title>
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+       background:#FFFFFF;color:#0A0A0A;font-family:Arial,Helvetica,sans-serif}
+  .card{border:2px solid #0A0A0A;border-radius:16px;padding:36px 44px;text-align:center;
+        box-shadow:0 10px 30px rgba(10,10,10,.12)}
+  .mark{width:64px;height:64px;margin:0 auto 14px;border:3px solid #D4AF37;border-radius:16px;
+        display:grid;place-items:center;font-size:26px;font-weight:800;color:#D4AF37}
+  h1{font-size:18px;letter-spacing:3px;margin:6px 0}
+  p{color:#6B6B60;font-size:13px}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#2e9e44;margin-right:6px}
+  a{color:#B8942A}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="mark">96</div>
+    <h1>96<sup>th</sup> PREDICTOR ENGINE</h1>
+    <p><span class="dot"></span>Backend alive — jiko linafanya kazi 🍳</p>
+    <p>Diagnostics: <a href="/health">/health</a></p>
+  </div>
+</body>
+</html>`;
+
+app.get('/', (_req, res) => res.type('html').send(STATUS_HTML));
+
+app.get('/health', (_req, res) => {
+  res.json({ ok: true, time: new Date().toISOString(), env: envStatus(), config: CONFIG.weights });
+});
+
+/**
+ * SECURED daily trigger (Step 17) — only cron-job.org knows the secret.
+ * Accepts GET or POST; secret via x-cron-secret header OR ?secret= query.
+ */
+app.post('/run-daily-job', runJobHandler);
+app.get('/run-daily-job', runJobHandler);
+async function runJobHandler(req, res) {
+  const secret = req.get('x-cron-secret') || req.query.secret;
+  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    const r = await runDailyJob();
+    res.json({ ok: true, date: r.date, safe_combined: r.safe.combined, accum_combined: r.accum.combined });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`[96th] server listening on :${PORT}`);
+  console.log('[96th] env check:', envStatus().map((e) => `${e.name}=${e.present ? 'OK' : 'MISSING'}`).join(' '));
+});

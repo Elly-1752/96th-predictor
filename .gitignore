@@ -1,0 +1,6 @@
+# Secrets — kamwe usipushe kwenye GitHub!
+.env
+
+# Dependencies & logs
+node_modules/
+npm-debug.log*
