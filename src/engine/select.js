@@ -1,24 +1,22 @@
 /**
- * DAILY SELECTION (Step 14).
+ * DAILY SELECTION — floors, not caps (user product rule v2):
+ *   Table 1 SAFE:        combined odds MINIMUM 3.00 (2.50 acceptable floor), NO maximum.
+ *   Table 2 ACCUMULATOR: combined odds MINIMUM 10.00, NO maximum.
  *
- * Plain language:
- *  - Sort all analysed matches by confidence (best first).
- *  - Table 1 (SAFE): take 2-3 STEPPED markets, multiplying odds as we go,
- *    never crossing the 3.00 cap. Prefer spreading across leagues.
- *  - Table 2 (ACCUMULATOR): take 3-5 legs using RAW (straight) markets,
- *    never crossing the 10.00 cap.
- *  - If not enough matches clear the confidence bar, lower the bar by 2
- *    at a time (never below the floor) and note it in the run report.
+ * Strategy: best confidence first; keep adding legs until the TARGET combined
+ * odds are reached (or legs run out). Prefer spreading across leagues.
+ * If the market day is thin and we end under the floor, we still publish the
+ * best effort and the run report carries a warning.
  */
 'use strict';
 
 const round2 = (v) => Math.round(v * 100) / 100;
 
 function sortByConfidence(list) {
-  return list.slice().sort((a, b) => b.confidence - a.confidence || a.odds - b.odds);
+  return list.slice().sort((a, b) => b.confidence - a.confidence || b.odds - a.odds);
 }
 
-function greedy(cands, { maxLegs, maxCombined, preferDiverse }) {
+function buildToFloor(cands, { minLegs, maxLegs, target }) {
   const picked = [];
   let combined = 1;
   const leagues = new Set();
@@ -28,75 +26,88 @@ function greedy(cands, { maxLegs, maxCombined, preferDiverse }) {
     combined = round2(combined * c.odds);
     leagues.add(c.league);
   };
-  const fits = (c) => combined * c.odds <= maxCombined + 1e-9;
 
   const pool = sortByConfidence(cands);
 
-  if (preferDiverse) {
-    for (const c of pool) {
-      if (picked.length >= maxLegs) break;
-      if (leagues.has(c.league)) continue;
-      if (fits(c)) add(c);
-    }
-  }
+  // pass 1 — league diversification until target reached
   for (const c of pool) {
-    if (picked.length >= maxLegs) break;
-    if (picked.includes(c)) continue;
-    if (fits(c)) add(c);
+    if (picked.length >= maxLegs || combined >= target) break;
+    if (leagues.has(c.league)) continue;
+    add(c);
   }
+  // pass 2 — keep stacking best confidence until target reached
+  for (const c of pool) {
+    if (picked.length >= maxLegs || combined >= target) break;
+    if (picked.includes(c)) continue;
+    add(c);
+  }
+  // pass 3 — honour minimum leg count
+  for (const c of pool) {
+    if (picked.length >= minLegs) break;
+    if (picked.includes(c)) continue;
+    add(c);
+  }
+
   return { picked, combined };
 }
 
 /**
- * scored = array of candidate objects:
- * { league, sport, home, away, kickoff, confidence,
- *   stepped: {market, selection, odds, note}, raw: {market, selection, odds},
- *   rawSignal, evidence }
+ * scored = candidate objects:
+ * { league, sport, home, away, kickoff, confidence, rawSignal,
+ *   stepped: {market, selection, odds, real, note}, raw: {market, selection, odds, real} }
  */
 function selectDaily(scored, config) {
   const lim = config.limits;
   const th = config.thresholds;
   const adjusted = {};
+  const warnings = [];
+
+  const mapSafe = (c) => ({
+    ...c, odds: c.stepped.odds, market: c.stepped.market,
+    selection: c.stepped.selection, note: c.stepped.note, realOdds: !!c.stepped.real,
+  });
+  const mapAcc = (c) => ({
+    ...c, odds: c.raw.odds, market: c.raw.market,
+    selection: c.raw.selection, note: 'Straight line (accumulator rule).', realOdds: !!c.raw.real,
+  });
 
   /* ---------- Table 1: SAFE (stepped markets only) ---------- */
   let safeTh = th.safe;
-  let safeCands = scored
-    .filter((c) => c.confidence >= safeTh)
-    .map((c) => ({ ...c, odds: c.stepped.odds, market: c.stepped.market, selection: c.stepped.selection, note: c.stepped.note }));
+  let safeCands = scored.filter((c) => c.confidence >= safeTh).map(mapSafe);
   while (safeCands.length < lim.safe.minPicks && safeTh > 55) {
     safeTh -= 2;
-    safeCands = scored
-      .filter((c) => c.confidence >= safeTh)
-      .map((c) => ({ ...c, odds: c.stepped.odds, market: c.stepped.market, selection: c.stepped.selection, note: c.stepped.note }));
+    safeCands = scored.filter((c) => c.confidence >= safeTh).map(mapSafe);
   }
   if (safeTh !== th.safe) adjusted.safe = { from: th.safe, to: safeTh };
 
-  const safe = greedy(safeCands, {
+  const safe = buildToFloor(safeCands, {
+    minLegs: lim.safe.minPicks,
     maxLegs: lim.safe.maxPicks,
-    maxCombined: lim.safe.maxCombinedOdds,
-    preferDiverse: true,
+    target: lim.safe.targetCombined,
   });
+  if (safe.combined < lim.safe.floorCombined) {
+    warnings.push(`SAFE combined ${safe.combined} below floor ${lim.safe.floorCombined} (thin market day).`);
+  }
 
   /* ---------- Table 2: ACCUMULATOR (straight lines allowed) ---------- */
   let accTh = th.accumulator;
-  let accCands = scored
-    .filter((c) => c.confidence >= accTh)
-    .map((c) => ({ ...c, odds: c.raw.odds, market: c.raw.market, selection: c.raw.selection, note: 'Straight line (accumulator rule).' }));
+  let accCands = scored.filter((c) => c.confidence >= accTh).map(mapAcc);
   while (accCands.length < lim.accumulator.minLegs && accTh > 52) {
     accTh -= 2;
-    accCands = scored
-      .filter((c) => c.confidence >= accTh)
-      .map((c) => ({ ...c, odds: c.raw.odds, market: c.raw.market, selection: c.raw.selection, note: 'Straight line (accumulator rule).' }));
+    accCands = scored.filter((c) => c.confidence >= accTh).map(mapAcc);
   }
   if (accTh !== th.accumulator) adjusted.accumulator = { from: th.accumulator, to: accTh };
 
-  const accum = greedy(accCands, {
+  const accum = buildToFloor(accCands, {
+    minLegs: lim.accumulator.minLegs,
     maxLegs: lim.accumulator.maxLegs,
-    maxCombined: lim.accumulator.maxCombinedOdds,
-    preferDiverse: true,
+    target: lim.accumulator.floorCombined, // minimum acts as the build target
   });
+  if (accum.combined < lim.accumulator.floorCombined) {
+    warnings.push(`ACCUMULATOR combined ${accum.combined} below floor ${lim.accumulator.floorCombined} (thin market day).`);
+  }
 
-  return { safe, accum, adjusted };
+  return { safe, accum, adjusted, warnings };
 }
 
 module.exports = { selectDaily };

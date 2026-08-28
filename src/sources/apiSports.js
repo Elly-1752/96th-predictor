@@ -28,6 +28,9 @@ async function apiGet(base, path) {
       headers: { 'x-apisports-key': process.env.API_SPORTS_KEY },
     });
     const json = await res.json().catch(() => ({}));
+    if (json.errors && json.errors.requests) {
+      throw new Error('API-SPORTS DAILY LIMIT reached (100/day) — resets at midnight UTC. Job will succeed after reset.');
+    }
     const rateLimited = res.status === 429 || (json.errors && json.errors.rateLimit);
 
     if (rateLimited && attempt < 2) {
@@ -77,6 +80,7 @@ async function getFootballOddsByDate(dateStr) {
         .map((b) => {
           const h2h = (b.bets || []).find((x) => x.id === 1); // Match Winner (1X2)
           const ou = (b.bets || []).find((x) => x.id === 5);  // Over/Under goals
+          const dc = (b.bets || []).find((x) => x.id === 10); // Double Chance
           if (!h2h) return null;
           const get = (v) => { const o2 = h2h.values.find((x) => x.value === v); return o2 ? o2.odd : null; };
           // over/under prices per goal line, e.g. ou['2.5'] = { over: 1.9, under: 1.9 }
@@ -90,7 +94,16 @@ async function getFootballOddsByDate(dateStr) {
               ouMap[line][m[1] === 'Over' ? 'over' : 'under'] = +v.odd;
             }
           }
-          return { book: b.name, home: +get('Home'), draw: +get('Draw'), away: +get('Away'), ou: ouMap };
+          // Double Chance: value Home = 1X, Away = X2, Draw = 12
+          const dcMap = {};
+          if (dc) {
+            for (const v of dc.values || []) {
+              if (v.value === 'Home') dcMap['1X'] = +v.odd;
+              if (v.value === 'Away') dcMap['X2'] = +v.odd;
+              if (v.value === 'Draw') dcMap['12'] = +v.odd;
+            }
+          }
+          return { book: b.name, home: +get('Home'), draw: +get('Draw'), away: +get('Away'), ou: ouMap, dc: dcMap };
         })
         .filter(Boolean),
     })),
@@ -151,16 +164,26 @@ async function getBasketballGames(dateStr) {
   };
 }
 
-/** Bookmaker odds for ONE basketball game. */
+/** Bookmaker odds for ONE basketball game (ML + spreads + totals). */
 async function getBasketballOdds(gameId) {
   const { data } = await apiGet(BB, `/odds?game=${gameId}`);
   const out = [];
   for (const o of data || []) {
     for (const b of o.bookmakers || []) {
-      const ml = (b.bets || []).find((x) => x.id === 1); // Match Winner incl. OT
+      const ml = (b.bets || []).find((x) => x.id === 1);  // Match Winner
+      const hd = (b.bets || []).find((x) => x.id === 2);  // Handicap / spread
       if (!ml) continue;
-      const get = (v) => { const x = ml.values.find((y) => y.value === v); return x ? +x.odd : null; };
-      out.push({ book: b.name, home: get('Home'), away: get('Away') });
+      const getMl = (v) => { const x = ml.values.find((y) => y.value === v); return x ? +x.odd : null; };
+      // spread values look like "Home-5.5" / "Away+5.5"
+      const spread = [];
+      if (hd) {
+        for (const v of hd.values || []) {
+          const m = /^(Home|Away)([+-]\d+(?:\.\d+)?)$/.exec(v.value || '');
+          if (!m) continue;
+          spread.push({ side: m[1] === 'Home' ? 'home' : 'away', line: parseFloat(m[2]), odd: +v.odd });
+        }
+      }
+      out.push({ book: b.name, home: getMl('Home'), away: getMl('Away'), spread });
     }
   }
   return out;

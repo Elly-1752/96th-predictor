@@ -8,7 +8,7 @@
 
 const footballData = require('./sources/footballData');
 const apiSports = require('./sources/apiSports');
-const { consensus, consensusOver } = require('./engine/consensus');
+const { consensus, consensusOver, meanOdd } = require('./engine/consensus');
 const { buildAnalysis } = require('./engine/analysis');
 const { scoreMatch } = require('./engine/scoring');
 const { detectRawSignal, stepDown } = require('./engine/stepdown');
@@ -80,9 +80,20 @@ async function runDailyJob() {
     const score = scoreMatch(analysis, CONFIG.weights);
     if (!score) continue;
 
+    // REAL live prices quoted by the books right now (what a betslip shows)
+    const real = {
+      winHome: meanOdd(books, (b) => b.home),
+      winDraw: meanOdd(books, (b) => b.draw),
+      winAway: meanOdd(books, (b) => b.away),
+      dcHome: meanOdd(books, (b) => b.dc && b.dc['1X']),
+      dcAway: meanOdd(books, (b) => b.dc && b.dc['X2']),
+      over15: meanOdd(books, (b) => b.ou && b.ou['1.5'] && b.ou['1.5'].over),
+      over25: meanOdd(books, (b) => b.ou && b.ou['2.5'] && b.ou['2.5'].over),
+    };
+
     const p = { home: cons.home, draw: cons.draw, away: cons.away, over25 };
     const raw = detectRawSignal(p, 'football');
-    const sd = stepDown(raw, { sport: 'football', homeTeam: fx.home_team, awayTeam: fx.away_team, p });
+    const sd = stepDown(raw, { sport: 'football', homeTeam: fx.home_team, awayTeam: fx.away_team, p, real });
 
     scored.push({
       league: fx.league, sport: 'football', home: fx.home_team, away: fx.away_team,
@@ -109,9 +120,14 @@ async function runDailyJob() {
       const analysis = { form: null, h2h: null, odds: { home: cons.home * 100, away: cons.away * 100 }, news: null };
       const score = scoreMatch(analysis, CONFIG.weights);
       if (!score) continue;
+      const real = {
+        mlHome: meanOdd(books, (b) => b.home),
+        mlAway: meanOdd(books, (b) => b.away),
+        books, // spreads for the safer-handicap step-down
+      };
       const p = { home: cons.home, away: cons.away };
       const raw = detectRawSignal(p, 'basketball');
-      const sd = stepDown(raw, { sport: 'basketball', homeTeam: g.home_team, awayTeam: g.away_team, p });
+      const sd = stepDown(raw, { sport: 'basketball', homeTeam: g.home_team, awayTeam: g.away_team, p, real });
       scored.push({
         league: g.league, sport: 'basketball', home: g.home_team, away: g.away_team,
         kickoff: g.kickoff, confidence: score.confidence, rawSignal: raw.signal,
@@ -127,16 +143,9 @@ async function runDailyJob() {
     sources.push({ id: 'api-basketball', role: 'games+odds', ok: false, error: e.message });
   }
 
-  /* ---------- 5) select the two tables ---------- */
+  /* ---------- 5) select the two tables (floors: safe>=2.5/3.0, accum>=10) ---------- */
   const sel = selectDaily(scored, CONFIG);
-
-  // hard safety guards (spec caps)
-  if (sel.safe.combined > CONFIG.limits.safe.maxCombinedOdds + 1e-9) {
-    throw new Error('Invariant violated: safe combined odds above 3.00');
-  }
-  if (sel.accum.combined > CONFIG.limits.accumulator.maxCombinedOdds + 1e-9) {
-    throw new Error('Invariant violated: accumulator combined odds above 10.00');
-  }
+  const realCount = [...sel.safe.picked, ...sel.accum.picked].filter((c) => c.realOdds).length;
 
   /* ---------- 6) persist to Supabase ---------- */
   const run = {
@@ -169,6 +178,8 @@ async function runDailyJob() {
     safe: sel.safe,
     accum: sel.accum,
     adjusted: sel.adjusted,
+    warnings: sel.warnings,
+    realOddsPicks: realCount,
     sources,
     ms: Date.now() - started,
   };

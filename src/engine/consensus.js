@@ -36,6 +36,18 @@ function consensus(books) {
   return out;
 }
 
+/**
+ * REAL consensus price: simple average of the decimal odds the books
+ * are actually quoting right now. This is what the user sees in a
+ * betslip — we show REAL market prices, not theoretical ones.
+ * get = (book) => odd number or null
+ */
+function meanOdd(books, get) {
+  const vals = (books || []).map(get).filter((v) => v && v > 1 && v < 60);
+  if (!vals.length) return null;
+  return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100;
+}
+
 /** Average de-vigged OVER probability for a goals line, e.g. line='2.5' */
 function consensusOver(books, line) {
   const probs = [];
@@ -48,4 +60,4 @@ function consensusOver(books, line) {
   return Math.round((probs.reduce((a, b) => a + b, 0) / probs.length) * 10000) / 10000;
 }
 
-module.exports = { devig, consensus, consensusOver };
+module.exports = { devig, consensus, consensusOver, meanOdd };
