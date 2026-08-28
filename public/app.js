@@ -113,3 +113,30 @@ main().catch((e) => {
   $('error').classList.remove('hidden');
   $('error-detail').textContent = e.message;
 });
+
+/* ------------------------------------------------- PWA: install + offline */
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const btn = $('install-btn');
+  if (btn) {
+    btn.classList.remove('hidden');
+    btn.onclick = async () => {
+      btn.classList.add('hidden');
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+    };
+  }
+});
+window.addEventListener('appinstalled', () => {
+  const btn = $('install-btn');
+  if (btn) btn.classList.add('hidden');
+});
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}

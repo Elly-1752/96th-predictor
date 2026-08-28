@@ -65,3 +65,5 @@ td.conf{min-width:110px}
 .copy-btn{background:transparent;color:var(--gold);border:1px solid var(--gold);font-weight:700;font-size:10.5px;letter-spacing:.6px;padding:4px 10px;border-radius:999px;cursor:pointer;text-transform:uppercase}
 .copy-btn:active{background:var(--gold);color:var(--black)}
 @media(max-width:560px){.brand-text h1{font-size:14px}.status-item{padding:8px 12px}main{padding:16px 10px 28px}}
+
+.install-btn{background:var(--gold);color:var(--black);border:none;font-weight:800;font-size:11px;letter-spacing:.8px;padding:8px 12px;border-radius:9px;cursor:pointer;text-transform:uppercase}
