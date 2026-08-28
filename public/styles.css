@@ -1,0 +1,65 @@
+/* 96th Predictor Engine — White / Black / Gold */
+:root {
+  --white:#FFFFFF; --black:#0A0A0A; --gold:#D4AF37; --gold-dark:#B8942A;
+  --gold-tint:#FAF4DE; --line:#E6E2D6; --grey:#6B6B60;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--white);color:var(--black);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+.hidden{display:none!important}
+
+.topbar{background:var(--black);color:var(--white);padding:14px 20px;display:flex;justify-content:space-between;border-bottom:2px solid var(--gold);position:sticky;top:0;z-index:20}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-mark{width:46px;height:46px;border:2px solid var(--gold);border-radius:12px;display:grid;place-items:center;font-weight:800;font-size:20px;color:var(--gold)}
+.brand-text h1{font-size:17px;letter-spacing:2.5px;font-weight:800}
+.brand-text h1 sup{color:var(--gold);font-size:10px}
+.tagline{font-size:11px;color:#B9B4A0;margin-top:2px}
+
+.status-strip{display:flex;gap:1px;background:var(--line);border-bottom:1px solid var(--line)}
+.status-item{flex:1;background:var(--white);padding:10px 16px;display:flex;flex-direction:column;gap:2px}
+.status-label{font-size:10px;text-transform:uppercase;letter-spacing:1.4px;color:var(--grey)}
+.status-value{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+main{flex:1;width:100%;max-width:980px;margin:0 auto;padding:22px 16px 34px;display:flex;flex-direction:column;gap:22px}
+.panel{border:1px solid var(--line);border-radius:14px;padding:34px 20px;text-align:center;box-shadow:0 8px 28px rgba(10,10,10,.08)}
+.panel p{margin-top:12px;color:var(--grey);font-size:13px}
+.spinner{width:34px;height:34px;margin:0 auto;border:3px solid var(--gold-tint);border-top-color:var(--gold);border-radius:50%;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.card{background:var(--white);border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 28px rgba(10,10,10,.08);overflow:hidden}
+.card-head{background:var(--black);color:var(--white);padding:14px 18px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.card-head h2{font-size:14.5px;letter-spacing:1.6px;text-transform:uppercase;display:flex;align-items:center;gap:10px;font-weight:800}
+.card-head .num{width:26px;height:26px;display:grid;place-items:center;border-radius:8px;background:var(--gold);color:var(--black);font-size:14px;font-weight:800}
+.card-meta{display:flex;gap:8px}
+.chip{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.35);color:#D8D4C4}
+.chip-gold{background:var(--gold);border-color:var(--gold);color:var(--black)}
+
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
+thead th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:1.3px;color:var(--grey);padding:12px 14px 8px;border-bottom:2px solid var(--gold)}
+tbody td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:nth-child(even){background:#FCFBF6}
+td.pos{font-weight:800;color:var(--gold-dark);width:34px}
+.match-teams{font-weight:700}
+.match-meta{font-size:11.5px;color:var(--grey);margin-top:3px}
+.sport-dot{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.8px;padding:2px 7px;border-radius:999px;margin-right:6px}
+.sport-dot.football{background:var(--black);color:var(--gold)}
+.sport-dot.basketball{background:var(--gold-tint);color:var(--gold-dark);border:1px solid var(--gold)}
+.market-name{font-weight:700}
+.selection-name{color:var(--grey);font-size:12px;margin-top:2px}
+.step-note{color:var(--grey);font-size:11px;margin-top:4px;font-style:italic}
+.odds-chip{display:inline-block;min-width:52px;text-align:center;background:var(--black);color:var(--gold);font-weight:800;padding:5px 9px;border-radius:8px}
+td.conf{min-width:110px}
+.conf-val{font-weight:800}
+.conf-bar{margin-top:5px;height:5px;border-radius:3px;background:var(--gold-tint);overflow:hidden}
+.conf-bar>span{display:block;height:100%;background:linear-gradient(90deg,var(--gold-dark),var(--gold))}
+.total-row td{background:var(--black)!important;color:var(--white);font-weight:800}
+.total-row .odds-chip{background:var(--gold);color:var(--black)}
+.foot-note{padding:10px 16px 13px;font-size:11.5px;color:var(--grey);border-top:1px dashed var(--line)}
+
+.disclaimer{position:sticky;bottom:0;z-index:20;background:var(--black);color:#CFC9B4;border-top:2px solid var(--gold);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:flex;gap:10px;justify-content:center}
+.disclaimer p{font-size:11px;line-height:1.5;max-width:900px}
+.disc-mark{color:var(--gold)}
+
+.btn-gold{background:var(--gold);color:var(--black);border:none;font-weight:800;font-size:12px;letter-spacing:.8px;padding:9px 14px;border-radius:9px;cursor:pointer;text-transform:uppercase;margin-top:10px}
+@media(max-width:560px){.brand-text h1{font-size:14px}.status-item{padding:8px 12px}main{padding:16px 10px 28px}}

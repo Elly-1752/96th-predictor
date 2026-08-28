@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>96th Predictor Engine</title>
+  <meta name="description" content="Daily low-risk football & basketball picks, generated automatically at 03:00 EAT." />
+  <meta name="theme-color" content="#0A0A0A" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">96</div>
+      <div class="brand-text">
+        <h1>96<sup>th</sup> PREDICTOR ENGINE</h1>
+        <p class="tagline">Low-risk daily picks · Football &amp; Basketball</p>
+      </div>
+    </div>
+  </header>
+
+  <section class="status-strip">
+    <div class="status-item">
+      <span class="status-label">Today's card</span>
+      <span class="status-value" id="card-date">—</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Generated</span>
+      <span class="status-value" id="generated-at">—</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Next auto-run</span>
+      <span class="status-value">03:00 EAT</span>
+    </div>
+  </section>
+
+  <main>
+    <div id="loading" class="panel">
+      <div class="spinner"></div>
+      <p>Loading today's picks…</p>
+    </div>
+
+    <div id="error" class="panel hidden">
+      <p><strong>No picks found yet.</strong></p>
+      <p id="error-detail">The first run happens at 03:00 EAT (or trigger it once from cron-job.org "Run now").</p>
+      <button class="btn-gold" onclick="location.reload()">Retry</button>
+    </div>
+
+    <div id="content" class="hidden">
+      <section class="card">
+        <div class="card-head">
+          <h2><span class="num">1</span> Today's Safe Picks</h2>
+          <div class="card-meta">
+            <span class="chip chip-gold" id="safe-combined">—</span>
+            <span class="chip">cap 3.00</span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Match</th><th>Market (stepped-down)</th><th>Odds</th><th>Confidence</th></tr>
+            </thead>
+            <tbody id="safe-body"></tbody>
+          </table>
+        </div>
+        <p class="foot-note">The engine never plays the raw outcome — every pick is stepped down to the nearest safer market.</p>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2><span class="num">2</span> Today's Accumulator</h2>
+          <div class="card-meta">
+            <span class="chip chip-gold" id="accum-combined">—</span>
+            <span class="chip">cap 10.00</span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Match</th><th>Market</th><th>Odds</th><th>Confidence</th></tr>
+            </thead>
+            <tbody id="accum-body"></tbody>
+          </table>
+        </div>
+        <p class="foot-note">Mid-risk combination. Straight lines allowed, but every leg clears the confidence threshold.</p>
+      </section>
+    </div>
+  </main>
+
+  <footer class="disclaimer">
+    <span class="disc-mark">⚠</span>
+    <p>Predictions are statistically-informed estimates, not guarantees. Sports outcomes carry inherent risk. Stake responsibly and only within a fixed budget you can afford to lose.</p>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

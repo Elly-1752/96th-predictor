@@ -7,6 +7,7 @@
 require('dotenv').config();
 
 const express = require('express');
+const path = require('path');
 const { CONFIG, envStatus } = require('./config');
 const { runDailyJob } = require('./job');
 
@@ -48,6 +49,14 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, time: new Date().toISOString(), env: envStatus(), config: CONFIG.weights });
 });
 
+/** Public, safe-by-design: anon key is meant to be public (RLS limits it to reads). */
+app.get('/api/config', (_req, res) => {
+  res.json({
+    supabaseUrl: process.env.SUPABASE_URL || '',
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
+  });
+});
+
 /**
  * SECURED daily trigger (Step 17) — only cron-job.org knows the secret.
  * Accepts GET or POST; secret via x-cron-secret header OR ?secret= query.
@@ -68,6 +77,7 @@ async function runJobHandler(req, res) {
 }
 
 const PORT = process.env.PORT || 3000;
+app.use(express.static(path.join(__dirname, '..', 'public')));
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[96th] server listening on :${PORT}`);
   console.log('[96th] env check:', envStatus().map((e) => `${e.name}=${e.present ? 'OK' : 'MISSING'}`).join(' '));
