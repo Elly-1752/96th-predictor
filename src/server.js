@@ -61,21 +61,37 @@ app.get('/api/config', (_req, res) => {
 /**
  * SECURED daily trigger (Step 17) — only cron-job.org knows the secret.
  * Accepts GET or POST; secret via x-cron-secret header OR ?secret= query.
+ *
+ * IMPORTANT (cron-job.org free tier: max 30s timeout):
+ * the job takes ~3 minutes, so we DO NOT wait for it here. We validate the
+ * secret, START the job in the background, and answer instantly. The job then
+ * runs to completion on this server; watch progress via GET /api/last-run.
  */
+let jobState = { running: false, startedAt: null, finishedAt: null, ok: null, error: null, date: null };
+
 app.post('/run-daily-job', runJobHandler);
 app.get('/run-daily-job', runJobHandler);
-async function runJobHandler(req, res) {
+function runJobHandler(req, res) {
   const secret = req.get('x-cron-secret') || req.query.secret;
   if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  try {
-    const r = await runDailyJob();
-    res.json({ ok: true, date: r.date, safe_combined: r.safe.combined, accum_combined: r.accum.combined });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
+  if (jobState.running) {
+    return res.json({ ok: true, alreadyRunning: true, startedAt: jobState.startedAt });
   }
+  jobState = { running: true, startedAt: new Date().toISOString(), finishedAt: null, ok: null, error: null, date: null };
+  runDailyJob()
+    .then((r) => {
+      jobState = { ...jobState, running: false, finishedAt: new Date().toISOString(), ok: true, error: null, date: r.date, safeCombined: r.safe.combined, accumCombined: r.accum.combined };
+    })
+    .catch((e) => {
+      jobState = { ...jobState, running: false, finishedAt: new Date().toISOString(), ok: false, error: e.message };
+    });
+  res.json({ ok: true, started: true, note: 'Job running in background — see /api/last-run' });
 }
+
+/** Public progress/status of the latest daily job (no secrets). */
+app.get('/api/last-run', (_req, res) => res.json(jobState));
 
 const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, '..', 'public')));
