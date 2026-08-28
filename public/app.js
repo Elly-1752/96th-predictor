@@ -113,23 +113,49 @@ async function main() {
 function initManualRun(currentRunDate) {
   const btn = $('run-btn');
   const st = $('run-status');
+  const overlay = $('wait-overlay');
+  const waitMsg = $('wait-msg');
   if (!btn) return;
   const todayStr = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
   let poll = null;
+  let msgTimer = null;
 
-  const setBusy = (msg) => {
-    btn.disabled = true;
-    btn.textContent = '⏳ Inachambua… subiri dakika 2–4';
-    st.textContent = msg || 'Engine inakusanya odds halisi, form, H2H na majeraha…';
+  const MSGS = [
+    'Inakusanya mechi za leo (08:00 EAT kuendelea)…',
+    'Inasoma odds HALISI za mabookmaker…',
+    'Inapima form, H2H na majeraha…',
+    'Inapunguza risk (step-down)…',
+    'Inajenga SAFE PICKS (min 3.00)…',
+    'Inajenga ACCUMULATOR (min 10.00)…',
+  ];
+  let msgIdx = 0;
+
+  const showWait = () => {
+    overlay.classList.remove('hidden');
+    waitMsg.textContent = MSGS[0];
+    msgIdx = 0;
+    if (msgTimer) clearInterval(msgTimer);
+    msgTimer = setInterval(() => {
+      msgIdx = (msgIdx + 1) % MSGS.length;
+      waitMsg.textContent = MSGS[msgIdx];
+    }, 5000);
   };
+  const hideWait = () => {
+    if (msgTimer) clearInterval(msgTimer);
+    msgTimer = null;
+    overlay.classList.add('hidden');
+  };
+
   const setDone = () => {
     btn.disabled = true;
     btn.textContent = '✔ Card ya leo tayari';
-    st.textContent = 'Imezalishwa leo. Kesho itawashwa na cron 08:00 EAT (au kitufe hiki tena).';
+    st.textContent = 'Imezalishwa leo. Kesho bofya ⚡ tena unapoamka.';
   };
 
   const startPolling = () => {
-    setBusy();
+    btn.disabled = true;
+    btn.textContent = '⏳ Inachambua…';
+    showWait();
     if (poll) clearInterval(poll);
     poll = setInterval(async () => {
       let s = null;
@@ -137,14 +163,15 @@ function initManualRun(currentRunDate) {
       if (!s || s.running) return;
       clearInterval(poll); poll = null;
       if (s.ok) {
-        st.textContent = 'Imekamilika! Inapakia card mpya…';
-        setTimeout(() => location.reload(), 800);
+        waitMsg.textContent = '✔ Imekamilika! Inapakia card mpya…';
+        setTimeout(() => { hideWait(); location.reload(); }, 900);
       } else {
+        hideWait();
         btn.disabled = false;
         btn.textContent = '⚡ Jaribu tena';
         st.textContent = 'Job imeshindwa: ' + (s.error || 'unknown error');
       }
-    }, 10000);
+    }, 8000);
   };
 
   if (currentRunDate === todayStr) { setDone(); }
@@ -158,7 +185,7 @@ function initManualRun(currentRunDate) {
     startPolling();
   };
 
-  // if a run is already in progress (page opened mid-run), resume the live status
+  // if a run is already in progress (page opened mid-run), resume the waiting screen
   fetch('/api/last-run').then((x) => x.json()).then((s) => {
     if (s && s.running) startPolling();
   }).catch(() => {});

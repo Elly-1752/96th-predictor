@@ -35,14 +35,14 @@
       <span class="status-value" id="generated-at">—</span>
     </div>
     <div class="status-item">
-      <span class="status-label">Next auto-run</span>
-      <span class="status-value">08:00 EAT</span>
+      <span class="status-label">Trigger</span>
+      <span class="status-value">Manual ⚡ (mara 1/siku)</span>
     </div>
   </section>
 
   <section class="manual-run">
     <button id="run-btn" class="btn-gold">⚡ Anza uchambuzi wa leo</button>
-    <p id="run-status" class="run-status">Kitufe hiki huanzisha job mara 1 kwa siku (kama cron). Ukibonyeza, subiri dakika 2–4 hapa hapa.</p>
+    <p id="run-status" class="run-status">Bofya mara 1 kwa siku — engine itachambua na kuonyesha card mpya hapa hapa (dakika 2–4).</p>
   </section>
 
   <main>
@@ -53,7 +53,7 @@
 
     <div id="error" class="panel hidden">
       <p><strong>No picks found yet.</strong></p>
-      <p id="error-detail">The first run happens at 08:00 EAT (or trigger it once from cron-job.org "Run now").</p>
+      <p id="error-detail">Bofya kitufe cha dhahabu ⚡ "Anza uchambuzi wa leo" juu ya page hii.</p>
       <button class="btn-gold" onclick="location.reload()">Retry</button>
     </div>
 
@@ -104,6 +104,29 @@
     <span class="disc-mark">⚠</span>
     <p>Predictions are statistically-informed estimates, not guarantees. Sports outcomes carry inherent risk. Stake responsibly and only within a fixed budget you can afford to lose.</p>
   </footer>
+
+  <div id="wait-overlay" class="wait-overlay hidden">
+    <div class="ball-area">
+      <svg class="ball" viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="50" r="47" fill="#FFFFFF" stroke="#0A0A0A" stroke-width="4"/>
+        <polygon points="50,30 68,43 61,64 39,64 32,43" fill="#0A0A0A"/>
+        <polygon points="50,3 60,9 50,17 40,9" fill="#0A0A0A"/>
+        <polygon points="93,36 97,48 87,52 81,41" fill="#0A0A0A"/>
+        <polygon points="7,36 19,41 13,52 3,48" fill="#0A0A0A"/>
+        <polygon points="76,86 66,92 62,81 72,76" fill="#0A0A0A"/>
+        <polygon points="24,86 28,76 38,81 34,92" fill="#0A0A0A"/>
+        <line x1="50" y1="17" x2="50" y2="30" stroke="#0A0A0A" stroke-width="3"/>
+        <line x1="81" y1="41" x2="68" y2="43" stroke="#0A0A0A" stroke-width="3"/>
+        <line x1="19" y1="41" x2="32" y2="43" stroke="#0A0A0A" stroke-width="3"/>
+        <line x1="72" y1="76" x2="61" y2="64" stroke="#0A0A0A" stroke-width="3"/>
+        <line x1="28" y1="76" x2="39" y2="64" stroke="#0A0A0A" stroke-width="3"/>
+      </svg>
+      <div class="ball-shadow"></div>
+    </div>
+    <h3>INACHAMBUA MECHI…</h3>
+    <p id="wait-msg">Inakusanya mechi za leo (08:00 EAT kuendelea)…</p>
+    <div class="gold-bar"></div>
+  </div>
 
   <script src="/app.js"></script>
 </body>

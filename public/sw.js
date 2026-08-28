@@ -2,7 +2,7 @@
    App shell: cache-first (works offline). Config: network-first with cache fallback. */
 'use strict';
 
-const VERSION = 'v3.1.0';
+const VERSION = 'v3.2.0';
 const SHELL_CACHE = 'p96-shell-' + VERSION;
 
 const SHELL_ASSETS = [
