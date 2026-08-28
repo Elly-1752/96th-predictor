@@ -9,7 +9,8 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const { CONFIG, envStatus } = require('./config');
-const { runDailyJob } = require('./job');
+const { runDailyJob, runDate } = require('./job');
+const { hasRunForDate } = require('./db');
 
 const app = express();
 app.disable('x-powered-by');
@@ -43,7 +44,7 @@ const STATUS_HTML = `<!doctype html>
 </body>
 </html>`;
 
-app.get('/', (_req, res) => res.redirect('/index.html'));
+app.get('/', (_req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
 app.get('/status', (_req, res) => res.type('html').send(STATUS_HTML));
 
 app.get('/health', (_req, res) => {
@@ -69,16 +70,8 @@ app.get('/api/config', (_req, res) => {
  */
 let jobState = { running: false, startedAt: null, finishedAt: null, ok: null, error: null, date: null };
 
-app.post('/run-daily-job', runJobHandler);
-app.get('/run-daily-job', runJobHandler);
-function runJobHandler(req, res) {
-  const secret = req.get('x-cron-secret') || req.query.secret;
-  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  if (jobState.running) {
-    return res.json({ ok: true, alreadyRunning: true, startedAt: jobState.startedAt });
-  }
+function startJobBackground() {
+  if (jobState.running) return false;
   jobState = { running: true, startedAt: new Date().toISOString(), finishedAt: null, ok: null, error: null, date: null };
   runDailyJob()
     .then((r) => {
@@ -87,11 +80,44 @@ function runJobHandler(req, res) {
     .catch((e) => {
       jobState = { ...jobState, running: false, finishedAt: new Date().toISOString(), ok: false, error: e.message };
     });
+  return true;
+}
+
+app.post('/run-daily-job', runJobHandler);
+app.get('/run-daily-job', runJobHandler);
+function runJobHandler(req, res) {
+  const secret = req.get('x-cron-secret') || req.query.secret;
+  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  if (!startJobBackground()) {
+    return res.json({ ok: true, alreadyRunning: true, startedAt: jobState.startedAt });
+  }
   res.json({ ok: true, started: true, note: 'Job running in background — see /api/last-run' });
 }
 
 /** Public progress/status of the latest daily job (no secrets). */
 app.get('/api/last-run', (_req, res) => res.json(jobState));
+
+/**
+ * MANUAL once-a-day trigger from the dashboard button.
+ * Server-side enforced: refuses if a run for today (EAT) already exists in the DB.
+ */
+app.post('/api/start-daily-run', async (_req, res) => {
+  if (jobState.running) {
+    return res.json({ ok: true, alreadyRunning: true, note: 'Job is already running — see /api/last-run' });
+  }
+  try {
+    const already = await hasRunForDate(runDate());
+    if (already) {
+      return res.status(409).json({ ok: false, alreadyRanToday: true, message: 'Card ya leo tayari imezalishwa — kitufe hiki hufanya kazi mara 1 kwa siku.' });
+    }
+  } catch (e) {
+    /* DB check failed — allow the run; running-flag still prevents doubles */
+  }
+  startJobBackground();
+  res.json({ ok: true, started: true, note: 'Job running in background — see /api/last-run' });
+});
 
 const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, '..', 'public')));

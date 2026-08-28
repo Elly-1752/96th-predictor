@@ -81,4 +81,12 @@ async function saveRun(run) {
   return runId;
 }
 
-module.exports = { saveRun };
+/** True if a run row for the given EAT date already exists (used for once-a-day manual trigger). */
+async function hasRunForDate(date) {
+  const sb = client();
+  const { data, error } = await sb.from('daily_runs').select('id').eq('run_date', date).limit(1);
+  if (error) throw new Error(error.message);
+  return (data || []).length > 0;
+}
+
+module.exports = { saveRun, hasRunForDate };

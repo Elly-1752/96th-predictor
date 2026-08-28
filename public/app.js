@@ -105,6 +105,63 @@ async function main() {
   };
   wire('copy-safe', fmtList('SAFE PICKS', safe, run.safe_combined_odds, 'min 3.00'));
   wire('copy-accum', fmtList('ACCUMULATOR', legs, run.accum_combined_odds, 'min 10.00'));
+
+  initManualRun(run.run_date);
+}
+
+/* ------------------------------------------------- manual once-a-day run */
+function initManualRun(currentRunDate) {
+  const btn = $('run-btn');
+  const st = $('run-status');
+  if (!btn) return;
+  const todayStr = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+  let poll = null;
+
+  const setBusy = (msg) => {
+    btn.disabled = true;
+    btn.textContent = '⏳ Inachambua… subiri dakika 2–4';
+    st.textContent = msg || 'Engine inakusanya odds halisi, form, H2H na majeraha…';
+  };
+  const setDone = () => {
+    btn.disabled = true;
+    btn.textContent = '✔ Card ya leo tayari';
+    st.textContent = 'Imezalishwa leo. Kesho itawashwa na cron 08:00 EAT (au kitufe hiki tena).';
+  };
+
+  const startPolling = () => {
+    setBusy();
+    if (poll) clearInterval(poll);
+    poll = setInterval(async () => {
+      let s = null;
+      try { s = await (await fetch('/api/last-run')).json(); } catch (_) { return; }
+      if (!s || s.running) return;
+      clearInterval(poll); poll = null;
+      if (s.ok) {
+        st.textContent = 'Imekamilika! Inapakia card mpya…';
+        setTimeout(() => location.reload(), 800);
+      } else {
+        btn.disabled = false;
+        btn.textContent = '⚡ Jaribu tena';
+        st.textContent = 'Job imeshindwa: ' + (s.error || 'unknown error');
+      }
+    }, 10000);
+  };
+
+  if (currentRunDate === todayStr) { setDone(); }
+
+  btn.onclick = async () => {
+    btn.disabled = true;
+    btn.textContent = '⏳ Inaanza…';
+    let r = null;
+    try { r = await (await fetch('/api/start-daily-run', { method: 'POST' })).json(); } catch (_) { r = { ok: false }; }
+    if (r.alreadyRanToday) { setDone(); return; }
+    startPolling();
+  };
+
+  // if a run is already in progress (page opened mid-run), resume the live status
+  fetch('/api/last-run').then((x) => x.json()).then((s) => {
+    if (s && s.running) startPolling();
+  }).catch(() => {});
 }
 
 main().catch((e) => {
@@ -112,6 +169,7 @@ main().catch((e) => {
   $('loading').classList.add('hidden');
   $('error').classList.remove('hidden');
   $('error-detail').textContent = e.message;
+  initManualRun(null); // no runs yet — the manual button must still work
 });
 
 /* ------------------------------------------------- PWA: install + offline */
