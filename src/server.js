@@ -43,7 +43,8 @@ const STATUS_HTML = `<!doctype html>
 </body>
 </html>`;
 
-app.get('/', (_req, res) => res.type('html').send(STATUS_HTML));
+app.get('/', (_req, res) => res.redirect('/index.html'));
+app.get('/status', (_req, res) => res.type('html').send(STATUS_HTML));
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true, time: new Date().toISOString(), env: envStatus(), config: CONFIG.weights });
