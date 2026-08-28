@@ -10,7 +10,7 @@ const express = require('express');
 const path = require('path');
 const { CONFIG, envStatus } = require('./config');
 const { runDailyJob, runDate } = require('./job');
-const { hasRunForDate } = require('./db');
+const { countRunsForDate } = require('./db');
 
 const app = express();
 app.disable('x-powered-by');
@@ -99,18 +99,28 @@ function runJobHandler(req, res) {
 /** Public progress/status of the latest daily job (no secrets). */
 app.get('/api/last-run', (_req, res) => res.json(jobState));
 
+/** How many manual runs happened today (EAT) — dashboard shows n/3. */
+app.get('/api/runs-today', async (_req, res) => {
+  try {
+    const count = await countRunsForDate(runDate());
+    res.json({ date: runDate(), count, limit: CONFIG.limits.maxRunsPerDay });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 /**
- * MANUAL once-a-day trigger from the dashboard button.
- * Server-side enforced: refuses if a run for today (EAT) already exists in the DB.
+ * MANUAL trigger from the dashboard button — up to 3 runs per day.
+ * A failed run never blocks retries; only the quota-safe daily cap does.
  */
 app.post('/api/start-daily-run', async (_req, res) => {
   if (jobState.running) {
     return res.json({ ok: true, alreadyRunning: true, note: 'Job is already running — see /api/last-run' });
   }
   try {
-    const already = await hasRunForDate(runDate());
-    if (already) {
-      return res.status(409).json({ ok: false, alreadyRanToday: true, message: 'Card ya leo tayari imezalishwa — kitufe hiki hufanya kazi mara 1 kwa siku.' });
+    const count = await countRunsForDate(runDate());
+    if (count >= CONFIG.limits.maxRunsPerDay) {
+      return res.status(429).json({ ok: false, dailyLimit: true, message: 'Umefikisha runs 3 za leo (ulinzi wa quota ya API). Jaribu tena kesho.' });
     }
   } catch (e) {
     /* DB check failed — allow the run; running-flag still prevents doubles */

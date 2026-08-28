@@ -10,10 +10,14 @@ const CONFIG = {
   // Scoring weights (must add up to 1.0)
   weights: { form: 0.40, h2h: 0.30, odds: 0.20, news: 0.10 },
 
-  // Daily output rules (user product rule v2): FLOORS, not caps.
+  // Daily output rules (user product rule v3):
+  //  SAFE: unlimited legs, combined odds must land BETWEEN 2.00 and 3.00.
+  //  ACCUMULATOR: unlimited legs, combined odds MINIMUM 10.00, no maximum.
+  // Manual trigger may run up to 3 times per day (quota protection).
   limits: {
-    safe:          { minPicks: 3, maxPicks: 5, targetCombined: 3.0, floorCombined: 2.5 },
-    accumulator:   { minLegs: 3, maxLegs: 7, floorCombined: 10.0 }, // no maximum
+    safe:          { minLegs: 3, maxLegs: Infinity, targetMin: 2.0, targetMax: 3.0 },
+    accumulator:   { minLegs: 3, maxLegs: Infinity, targetMin: 10.0, targetMax: Infinity },
+    maxRunsPerDay: 3,
   },
 
   // Minimum confidence (0..100) a fixture must score to be eligible

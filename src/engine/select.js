@@ -1,12 +1,12 @@
 /**
- * DAILY SELECTION — floors, not caps (user product rule v2):
- *   Table 1 SAFE:        combined odds MINIMUM 3.00 (2.50 acceptable floor), NO maximum.
- *   Table 2 ACCUMULATOR: combined odds MINIMUM 10.00, NO maximum.
+ * DAILY SELECTION — user product rule v3:
+ *   Table 1 SAFE:        UNLIMITED legs; combined odds must land in [2.00 .. 3.00].
+ *   Table 2 ACCUMULATOR: UNLIMITED legs; combined odds MINIMUM 10.00, no maximum.
  *
- * Strategy: best confidence first; keep adding legs until the TARGET combined
- * odds are reached (or legs run out). Prefer spreading across leagues.
- * If the market day is thin and we end under the floor, we still publish the
- * best effort and the run report carries a warning.
+ * Strategy: best confidence first; keep adding legs until the minimum target is
+ * reached, but NEVER add a leg that would push SAFE above 3.00 (last resort for
+ * the minimum-leg count may exceed it, flagged with a warning).
+ * Prefer spreading across leagues. Thin market day -> publish best effort + warning.
  */
 'use strict';
 
@@ -16,7 +16,11 @@ function sortByConfidence(list) {
   return list.slice().sort((a, b) => b.confidence - a.confidence || b.odds - a.odds);
 }
 
-function buildToFloor(cands, { minLegs, maxLegs, target }) {
+/**
+ * cands: candidate pick objects with .odds and .league
+ * opts: { minLegs, maxLegs, targetMin, targetMax }
+ */
+function buildToRange(cands, { minLegs, maxLegs, targetMin, targetMax }) {
   const picked = [];
   let combined = 1;
   const leagues = new Set();
@@ -26,23 +30,26 @@ function buildToFloor(cands, { minLegs, maxLegs, target }) {
     combined = round2(combined * c.odds);
     leagues.add(c.league);
   };
+  const wouldOverflow = (c) => Number.isFinite(targetMax) && round2(combined * c.odds) > targetMax;
+  const done = () => picked.length >= maxLegs || combined >= targetMin;
 
   const pool = sortByConfidence(cands);
 
-  // pass 1 — league diversification until target reached
+  // pass 1 — league diversification until minimum target reached (respecting the cap)
   for (const c of pool) {
-    if (picked.length >= maxLegs || combined >= target) break;
-    if (leagues.has(c.league)) continue;
+    if (done()) break;
+    if (leagues.has(c.league) || wouldOverflow(c)) continue;
     add(c);
   }
-  // pass 2 — keep stacking best confidence until target reached
+  // pass 2 — keep stacking best confidence until minimum target reached
   for (const c of pool) {
-    if (picked.length >= maxLegs || combined >= target) break;
-    if (picked.includes(c)) continue;
+    if (done()) break;
+    if (picked.includes(c) || wouldOverflow(c)) continue;
     add(c);
   }
-  // pass 3 — honour minimum leg count
-  for (const c of pool) {
+  // pass 3 — honour minimum leg count (smallest odds first; cap may bend as last resort)
+  const byOdds = pool.slice().sort((a, b) => a.odds - b.odds);
+  for (const c of byOdds) {
     if (picked.length >= minLegs) break;
     if (picked.includes(c)) continue;
     add(c);
@@ -71,25 +78,29 @@ function selectDaily(scored, config) {
     selection: c.raw.selection, note: 'Straight line (accumulator rule).', realOdds: !!c.raw.real,
   });
 
-  /* ---------- Table 1: SAFE (stepped markets only) ---------- */
+  /* ---------- Table 1: SAFE (stepped markets only, combined 2.00-3.00) ---------- */
   let safeTh = th.safe;
   let safeCands = scored.filter((c) => c.confidence >= safeTh).map(mapSafe);
-  while (safeCands.length < lim.safe.minPicks && safeTh > 55) {
+  while (safeCands.length < lim.safe.minLegs && safeTh > 55) {
     safeTh -= 2;
     safeCands = scored.filter((c) => c.confidence >= safeTh).map(mapSafe);
   }
   if (safeTh !== th.safe) adjusted.safe = { from: th.safe, to: safeTh };
 
-  const safe = buildToFloor(safeCands, {
-    minLegs: lim.safe.minPicks,
-    maxLegs: lim.safe.maxPicks,
-    target: lim.safe.targetCombined,
+  const safe = buildToRange(safeCands, {
+    minLegs: lim.safe.minLegs,
+    maxLegs: lim.safe.maxLegs,
+    targetMin: lim.safe.targetMin,
+    targetMax: lim.safe.targetMax,
   });
-  if (safe.combined < lim.safe.floorCombined) {
-    warnings.push(`SAFE combined ${safe.combined} below floor ${lim.safe.floorCombined} (thin market day).`);
+  if (safe.combined < lim.safe.targetMin) {
+    warnings.push(`SAFE combined ${safe.combined} below 2.00 (thin market day).`);
+  }
+  if (safe.combined > lim.safe.targetMax) {
+    warnings.push(`SAFE combined ${safe.combined} above 3.00 (could not fit the range with min legs).`);
   }
 
-  /* ---------- Table 2: ACCUMULATOR (straight lines allowed) ---------- */
+  /* ---------- Table 2: ACCUMULATOR (straight lines, unlimited legs, min 10.00) ---------- */
   let accTh = th.accumulator;
   let accCands = scored.filter((c) => c.confidence >= accTh).map(mapAcc);
   while (accCands.length < lim.accumulator.minLegs && accTh > 52) {
@@ -98,16 +109,17 @@ function selectDaily(scored, config) {
   }
   if (accTh !== th.accumulator) adjusted.accumulator = { from: th.accumulator, to: accTh };
 
-  const accum = buildToFloor(accCands, {
+  const accum = buildToRange(accCands, {
     minLegs: lim.accumulator.minLegs,
     maxLegs: lim.accumulator.maxLegs,
-    target: lim.accumulator.floorCombined, // minimum acts as the build target
+    targetMin: lim.accumulator.targetMin,
+    targetMax: lim.accumulator.targetMax,
   });
-  if (accum.combined < lim.accumulator.floorCombined) {
-    warnings.push(`ACCUMULATOR combined ${accum.combined} below floor ${lim.accumulator.floorCombined} (thin market day).`);
+  if (accum.combined < lim.accumulator.targetMin) {
+    warnings.push(`ACCUMULATOR combined ${accum.combined} below 10.00 (thin market day).`);
   }
 
   return { safe, accum, adjusted, warnings };
 }
 
-module.exports = { selectDaily };
+module.exports = { selectDaily, buildToRange };

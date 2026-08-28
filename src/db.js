@@ -35,11 +35,11 @@ function client() {
 async function saveRun(run) {
   const sb = client();
 
-  // 1) Replace any previous run for this EAT date (cascade deletes old rows)
-  const del = await sb.from('daily_runs').delete().eq('run_date', run.run_date);
-  if (del.error) throw new Error('delete old run: ' + del.error.message);
+  // NOTE: previous runs for the same date are KEPT (history for the 3x/day
+  // manual runs). The dashboard always shows the most recent generated_at,
+  // so a FAILED run can never wipe an existing card.
 
-  // 2) Insert the run header
+  // 1) Insert the run header
   const insRun = await sb
     .from('daily_runs')
     .insert({
@@ -81,12 +81,15 @@ async function saveRun(run) {
   return runId;
 }
 
-/** True if a run row for the given EAT date already exists (used for once-a-day manual trigger). */
-async function hasRunForDate(date) {
+/** How many runs exist for the given EAT date (manual trigger allows up to 3/day). */
+async function countRunsForDate(date) {
   const sb = client();
-  const { data, error } = await sb.from('daily_runs').select('id').eq('run_date', date).limit(1);
+  const { count, error } = await sb
+    .from('daily_runs')
+    .select('id', { count: 'exact', head: true })
+    .eq('run_date', date);
   if (error) throw new Error(error.message);
-  return (data || []).length > 0;
+  return count || 0;
 }
 
-module.exports = { saveRun, hasRunForDate };
+module.exports = { saveRun, countRunsForDate };

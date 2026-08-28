@@ -35,8 +35,8 @@ async function main() {
     return r.json();
   };
 
-  // latest run (today's card, or most recent if today not generated yet)
-  const runs = await get('daily_runs?order=run_date.desc&limit=1');
+  // latest run (multiple runs per date possible — newest generated_at wins)
+  const runs = await get('daily_runs?order=generated_at.desc&limit=1');
   if (!runs.length) throw new Error('No runs yet.');
   const run = runs[0];
 
@@ -103,7 +103,7 @@ async function main() {
       } catch (_) { b.textContent = 'Select manually'; }
     };
   };
-  wire('copy-safe', fmtList('SAFE PICKS', safe, run.safe_combined_odds, 'min 3.00'));
+  wire('copy-safe', fmtList('SAFE PICKS', safe, run.safe_combined_odds, 'range 2.00–3.00'));
   wire('copy-accum', fmtList('ACCUMULATOR', legs, run.accum_combined_odds, 'min 10.00'));
 
   initManualRun(run.run_date);
@@ -152,6 +152,12 @@ function initManualRun(currentRunDate) {
     st.textContent = 'Imezalishwa leo. Kesho bofya ⚡ tena unapoamka.';
   };
 
+  const setExhausted = () => {
+    btn.disabled = true;
+    btn.textContent = '✔ Runs 3/3 za leo zimekamilika';
+    st.textContent = 'Quota imelinda siku yako — kesho utapata runs 3 mpya.';
+  };
+
   const startPolling = () => {
     btn.disabled = true;
     btn.textContent = '⏳ Inachambua…';
@@ -174,14 +180,21 @@ function initManualRun(currentRunDate) {
     }, 8000);
   };
 
-  if (currentRunDate === todayStr) { setDone(); }
+  // daily run counter: up to 3 manual runs per day (quota protection)
+  fetch('/api/runs-today').then((x) => x.json()).then((info) => {
+    if (info.count >= info.limit) { setExhausted(); return; }
+    if (currentRunDate === todayStr) {
+      btn.textContent = `⚡ Sasisha card ya leo (${info.count}/${info.limit})`;
+      st.textContent = 'Run mpya itasasisha card; ya zamani haifutwi isipokuwa mpya ikifaulu.';
+    }
+  }).catch(() => {});
 
   btn.onclick = async () => {
     btn.disabled = true;
     btn.textContent = '⏳ Inaanza…';
     let r = null;
     try { r = await (await fetch('/api/start-daily-run', { method: 'POST' })).json(); } catch (_) { r = { ok: false }; }
-    if (r.alreadyRanToday) { setDone(); return; }
+    if (r.dailyLimit) { setExhausted(); return; }
     startPolling();
   };
 

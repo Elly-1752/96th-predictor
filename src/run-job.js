@@ -9,10 +9,10 @@ runDailyJob()
     console.log(`\n=== DAILY JOB DONE — ${r.date} (run #${r.runId}, ${r.ms}ms) ===`);
     console.log('sources:', r.sources.map((s) => `${s.id}${s.ok ? '' : '(FAIL)'}`).join(', '));
     console.log(`analysed ${r.analysed} fixtures`);
-    console.log(`\nTABLE 1 — SAFE PICKS (combined ${r.safe.combined} | target >=3.00, floor 2.50, no max):`);
+    console.log(`\nTABLE 1 — SAFE PICKS (combined ${r.safe.combined} | range 2.00-3.00, unlimited legs):`);
     r.safe.picked.forEach((c, i) =>
       console.log(`  ${i + 1}. [${c.sport}] ${c.home} vs ${c.away} | ${c.market}: ${c.selection} @ ${c.odds} (${c.realOdds ? 'REAL odds' : 'est.'}) | conf ${c.confidence}`));
-    console.log(`\nTABLE 2 — ACCUMULATOR (combined ${r.accum.combined} | minimum 10.00, no max):`);
+    console.log(`\nTABLE 2 — ACCUMULATOR (combined ${r.accum.combined} | minimum 10.00, unlimited legs):`);
     r.accum.picked.forEach((c, i) =>
       console.log(`  ${i + 1}. [${c.sport}] ${c.home} vs ${c.away} | ${c.market}: ${c.selection} @ ${c.odds} (${c.realOdds ? 'REAL odds' : 'est.'}) | conf ${c.confidence}`));
     if (Object.keys(r.adjusted).length) console.log('\nthreshold adjustments:', JSON.stringify(r.adjusted));
