@@ -85,6 +85,26 @@ async function main() {
       <td><span class="odds-chip">${Number(run.accum_combined_odds).toFixed(2)}</span></td><td></td>
     </tr>` : '';
   $('accum-body').innerHTML = legsHtml + totalRow;
+
+  /* ---------- copy-to-clipboard (fast manual entry at any bookmaker) ---------- */
+  const fmtList = (title, rows, combined, rule) =>
+    `96th PREDICTOR — ${title} (${fmtDate(run.run_date)})\n` +
+    rows.map((p) => `${p.position}) ${p.selection} @${Number(p.odds).toFixed(2)}\n   ${p.home_team} vs ${p.away_team} — ${p.league}`).join('\n') +
+    `\nCombined: ${Number(combined).toFixed(2)} (${rule})`;
+
+  const wire = (id, text) => {
+    const b = $(id);
+    if (!b) return;
+    b.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(text);
+        b.textContent = 'Copied ✔';
+        setTimeout(() => { b.textContent = 'Copy'; }, 2000);
+      } catch (_) { b.textContent = 'Select manually'; }
+    };
+  };
+  wire('copy-safe', fmtList('SAFE PICKS', safe, run.safe_combined_odds, 'min 3.00'));
+  wire('copy-accum', fmtList('ACCUMULATOR', legs, run.accum_combined_odds, 'min 10.00'));
 }
 
 main().catch((e) => {

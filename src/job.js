@@ -26,6 +26,19 @@ function todayEAT() {
   return new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
+/**
+ * Kickoff policy (user rule):
+ *  - the match must still be UPCOMING at run time (no past games), and
+ *  - its EAT local start time must be 08:00 or later (the user sleeps 00:00-08:00).
+ */
+function kickoffAllowed(iso, nowMs) {
+  if (!iso) return false;
+  const t = new Date(iso).getTime();
+  if (isNaN(t) || t < nowMs) return false;
+  const eatHour = new Date(t + 3 * 3600 * 1000).getUTCHours();
+  return eatHour >= 8;
+}
+
 async function runDailyJob() {
   const date = todayEAT();
   const sources = [];
@@ -48,7 +61,10 @@ async function runDailyJob() {
   const oddsById = new Map(oddsRes.odds.map((o) => [o.ext_id, o.bookmakers]));
 
   // candidates: real bookmaker coverage, priority leagues first, max 10 (request budget)
-  const covered = fxRes.fixtures.filter((f) => (oddsById.get(f.ext_id) || []).length >= 2);
+  const nowMs = Date.now();
+  const covered = fxRes.fixtures
+    .filter((f) => (oddsById.get(f.ext_id) || []).length >= 2)
+    .filter((f) => kickoffAllowed(f.kickoff, nowMs));
   const candidates = covered
     .sort((a, b) => {
       const pa = PRIORITY_LEAGUES.includes(a.league) ? 0 : 1;
@@ -114,6 +130,7 @@ async function runDailyJob() {
     const bb = await apiSports.getBasketballGames(date);
     sources.push({ id: 'api-basketball', role: 'games+odds', ok: true, fixtures: bb.games.length });
     for (const g of bb.games.slice(0, 6)) {
+      if (!kickoffAllowed(g.kickoff, nowMs)) continue;
       const books = await apiSports.getBasketballOdds(g.ext_id);
       const cons = consensus(books);
       if (!cons) continue;
@@ -185,4 +202,4 @@ async function runDailyJob() {
   };
 }
 
-module.exports = { runDailyJob, todayEAT };
+module.exports = { runDailyJob, todayEAT, kickoffAllowed };
